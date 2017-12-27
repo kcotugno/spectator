@@ -4,6 +4,11 @@ import (
 	"sync"
 )
 
+type ListEntry interface {
+	String()   string
+	Attributes() Attributes
+}
+
 type ListWidget struct {
 	Constraints Constraints
 	Attrs       Attributes
@@ -15,7 +20,9 @@ type ListWidget struct {
 	border     bool
 
 	listLock sync.Mutex
-	list     [][]rune
+	list     [][]Cell
+
+	listBuf [][]Cell
 
 	lastSize Size
 }
@@ -56,7 +63,6 @@ func (l *ListWidget) Render() [][]Cell {
 				c.Value = ' '
 				l.cells[y] = append(l.cells[y], c)
 			} else {
-				l.cells[y][x].Attrs = l.Attrs
 				l.cells[y][x].Pos.X = x
 				l.cells[y][x].Pos.Y = y
 			}
@@ -68,21 +74,29 @@ func (l *ListWidget) Render() [][]Cell {
 	return append([][]Cell(nil), l.cells...)
 }
 
-func (l *ListWidget) SetList(list []string) {
-	buf := make([][]rune, len(list))
-
-	for i, s := range list {
-		buf[i] = make([]rune, 0)
-
-		for _, r := range s {
-			buf[i] = append(buf[i], r)
-		}
+func (l *ListWidget) AddEntry(entry ListEntry) {
+	if l.listBuf == nil {
+		l.listBuf = make([][]Cell, 1)
+	} else {
+		l.listBuf = append(l.listBuf, []Cell{})
 	}
 
-	l.listLock.Lock()
-	l.list = buf
-	l.listLock.Unlock()
+	index := len(l.listBuf) - 1
 
+	for _, r := range entry.String() {
+		cell := Cell{}
+		cell.Value = r
+		cell.Attrs = entry.Attributes()
+
+		l.listBuf[index] = append(l.listBuf[index], cell)
+	}
+}
+
+func (l *ListWidget) Commit() {
+	l.listLock.Lock()
+	l.list = append([][]Cell{}, l.listBuf...)
+	l.listLock.Unlock()
+	l.listBuf = nil
 	l.recalculateCells()
 }
 
@@ -125,15 +139,15 @@ func (l *ListWidget) recalculateCells() {
 		border = 1
 
 		top := make([]Cell, longest+2)
-		top[0] = Cell{Value: '┏'}
-		top[longest+1] = Cell{Value: '┓'}
+		top[0] = Cell{Value: '┏', Attrs: l.Attrs}
+		top[longest+1] = Cell{Value: '┓', Attrs: l.Attrs}
 		for i := 1; i <= longest; i++ {
-			top[i] = Cell{Value: '━'}
+			top[i] = Cell{Value: '━', Attrs: l.Attrs}
 		}
 
 		bottom := append([]Cell(nil), top...)
-		bottom[0] = Cell{Value: '┗'}
-		bottom[longest+1] = Cell{Value: '┛'}
+		bottom[0] = Cell{Value: '┗', Attrs: l.Attrs}
+		bottom[longest+1] = Cell{Value: '┛', Attrs: l.Attrs}
 
 		cells = append([][]Cell{top}, cells...)
 		cells = append(cells, bottom)
@@ -150,7 +164,7 @@ func (l *ListWidget) recalculateCells() {
 		}
 
 		if l.border {
-			c := Cell{Value: '┃'}
+			c := Cell{Value: '┃', Attrs: l.Attrs}
 			cells[i+border][0] = c
 			cells[i+border][longest+1] = c
 		}
@@ -160,7 +174,7 @@ func (l *ListWidget) recalculateCells() {
 			if j > start+len(s)-1 || j < start {
 				c.Value = ' '
 			} else {
-				c.Value = s[j-start]
+				c = s[j-start]
 			}
 
 			cells[i+border][j+border] = c

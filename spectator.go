@@ -81,7 +81,7 @@ func main() {
 	window.Constraints.Bottom = true
 	topAsks.SetBorder(true)
 	topAsks.SetRightAlign(true)
-	topAsks.Attrs.ForegroundColor = exhibit.FGRed
+	topAsks.Attrs.ForegroundColor = exhibit.FGYellow
 
 	topBids = &exhibit.ListWidget{}
 	topBids.SetBorder(true)
@@ -168,7 +168,6 @@ func main() {
 		num := numOfOrderPerSide(sz.Y)
 
 		aIt := asks.Iterator()
-		s := make([]string, num)
 
 		var low, high decimal.Decimal
 		for i := num - 1; i >= 0; i-- {
@@ -177,13 +176,15 @@ func main() {
 			entries := aIt.Value().(Entries)
 			price, size := flatten(entries)
 
-			s[i] = fmt.Sprintf("%v - %v ", price.StringFixed(2), size.StringFixed(8))
+			topAsks.AddEntry(ListEntry{Value: size.StringFixed(8),
+				Attrs: exhibit.Attributes{ForegroundColor:
+				exhibit.FGBlue}})
 
 			if i == num-1 {
 				low = price
 			}
 		}
-		topAsks.SetList(append([]string{}, s...))
+		topAsks.Commit()
 
 		bIt := bids.Iterator()
 		for i := 0; i < num; i++ {
@@ -192,22 +193,20 @@ func main() {
 			entries := bIt.Value().(Entries)
 			price, size := flatten(entries)
 
-			s[i] = fmt.Sprintf("%v - %v ", price.StringFixed(2), size.StringFixed(8))
+			topBids.AddEntry(ListEntry{Value: size.StringFixed(8)})
 
 			if i == 0 {
 				high = price
 			}
 		}
 
-		topBids.SetList(append([]string(nil), s...))
+		topBids.Commit()
 
 		diff := low.Sub(high)
 
-		s = []string{"", fmt.Sprintf("%v  Spread: %v",
-			high.Add(diff.Div(decimal.New(2, 0))).StringFixed(3),
-			diff.StringFixed(2)), ""}
-
-		midPrice.SetList(append([]string(nil), s...))
+		midPrice.AddEntry(ListEntry{Value: high.Add(diff.Div(decimal.
+			New(2, 0))).StringFixed(3)})
+		midPrice.Commit()
 	}
 }
 
