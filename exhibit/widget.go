@@ -13,6 +13,14 @@ type Constraints struct {
 	Right  bool
 }
 
+type Size struct {
+	X int
+	Y int
+}
+
+
 type Widget interface {
-	Render() [][]Cell
+	Render()      [][]Cell
+	Constraints() Constraints
+	SetSize(size Size)
 }

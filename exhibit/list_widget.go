@@ -10,8 +10,9 @@ type ListEntry interface {
 }
 
 type ListWidget struct {
-	Constraints Constraints
-	Attrs       Attributes
+	Constrs Constraints
+	Attrs   Attributes
+	Size    Size
 
 	cellLock sync.Mutex
 	cells    [][]Cell
@@ -25,6 +26,10 @@ type ListWidget struct {
 	listBuf [][]Cell
 
 	lastSize Size
+}
+
+func (l *ListWidget) SetSize(size Size) {
+	l.Size = size
 }
 
 func (l *ListWidget) Render() [][]Cell {
@@ -72,6 +77,10 @@ func (l *ListWidget) Render() [][]Cell {
 	l.lastSize.X = sx
 	l.lastSize.Y = sy
 	return append([][]Cell(nil), l.cells...)
+}
+
+func (l ListWidget) Constraints() Constraints {
+	return l.Constrs
 }
 
 func (l *ListWidget) AddEntry(entry ListEntry) {

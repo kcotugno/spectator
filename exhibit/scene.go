@@ -6,6 +6,8 @@ type Scene struct {
 }
 
 func (s *Scene) Render() {
+	s.Window.SetSize(s.Terminal.Size())
+
 	c := make([]Cell, 0)
 
 	for _, row := range s.Window.Render() {

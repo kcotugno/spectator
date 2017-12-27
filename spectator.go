@@ -78,7 +78,7 @@ func main() {
 
 	window = &exhibit.WindowWidget{}
 	topAsks = &exhibit.ListWidget{}
-	window.Constraints.Bottom = true
+	window.Constrs.Bottom = true
 	topAsks.SetBorder(true)
 	topAsks.SetRightAlign(true)
 	topAsks.Attrs.ForegroundColor = exhibit.FGYellow

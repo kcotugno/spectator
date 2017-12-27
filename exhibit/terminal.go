@@ -23,11 +23,6 @@ const (
 	cup        = "\x1b[%v;%vH"
 )
 
-type Size struct {
-	X int
-	Y int
-}
-
 type Terminal struct {
 	Event <-chan Event
 

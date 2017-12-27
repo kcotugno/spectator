@@ -1,8 +1,9 @@
 package exhibit
 
 type WindowWidget struct {
-	Constraints Constraints
-	Border      Border
+	Constrs Constraints
+	Size    Size
+	Border  Border
 
 	widgets []Widget
 }
@@ -13,6 +14,14 @@ func (w *WindowWidget) AddWidget(widget Widget) {
 	}
 
 	w.widgets = append(w.widgets, widget)
+}
+
+func (w *WindowWidget) SetSize(size Size) {
+	w.Size = size
+}
+
+func (w *WindowWidget) Constraints() Constraints {
+	return w.Constrs
 }
 
 func (w *WindowWidget) Render() [][]Cell {
