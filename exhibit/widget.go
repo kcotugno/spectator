@@ -18,9 +18,8 @@ type Size struct {
 	Y int
 }
 
-
 type Widget interface {
-	Render()      [][]Cell
+	Render() [][]Cell
 	Constraints() Constraints
 	SetSize(size Size)
 }

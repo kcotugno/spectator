@@ -14,13 +14,13 @@ import (
 )
 
 const (
-	smcup      = "\x1b[?1049h"
-	rmcup      = "\x1b[?1049l"
-	civis      = "\x1b[?25l"
-	cvvis      = "\x1b[?12;25h"
-	clear      = "\x1b[2J"
-	sgr        = "\x1b[%vm"
-	cup        = "\x1b[%v;%vH"
+	smcup = "\x1b[?1049h"
+	rmcup = "\x1b[?1049l"
+	civis = "\x1b[?25l"
+	cvvis = "\x1b[?12;25h"
+	clear = "\x1b[2J"
+	sgr   = "\x1b[%vm"
+	cup   = "\x1b[%v;%vH"
 )
 
 type Terminal struct {

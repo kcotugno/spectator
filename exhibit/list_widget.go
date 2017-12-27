@@ -5,7 +5,7 @@ import (
 )
 
 type ListEntry interface {
-	String()   string
+	String() string
 	Attributes() Attributes
 }
 

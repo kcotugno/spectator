@@ -1,10 +1,10 @@
 package main
 
 import (
+	"git.kevincotugno.com/kcotugno/spectator/exhibit"
 	"github.com/emirpasic/gods/trees/redblacktree"
 	"github.com/gorilla/websocket"
 	"github.com/shopspring/decimal"
-	"git.kevincotugno.com/kcotugno/spectator/exhibit"
 
 	"encoding/json"
 	"fmt"
@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	coin = "ETH-USD"
+	coin       = "ETH-USD"
 	timeFormat = "15:04:05"
 )
 
@@ -177,8 +177,7 @@ func main() {
 			price, size := flatten(entries)
 
 			topAsks.AddEntry(ListEntry{Value: size.StringFixed(8),
-				Attrs: exhibit.Attributes{ForegroundColor:
-				exhibit.FGBlue}})
+				Attrs: exhibit.Attributes{ForegroundColor: exhibit.FGBlue}})
 
 			if i == num-1 {
 				low = price
