@@ -105,7 +105,7 @@ func main() {
 
 	go func() {
 		for e := range terminal.Event {
-			if e == exhibit.CtrC {
+			if e == exhibit.EventCtrC || e == exhibit.Eventq {
 				conn.WriteMessage(websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.
 						CloseNormalClosure, ""))

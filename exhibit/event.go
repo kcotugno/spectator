@@ -1,7 +1,8 @@
 package exhibit
 
 const (
-	CtrC = Event(3)
+	EventCtrC = Event(3)
+	Eventq    = Event(113)
 )
 
 type Event byte
