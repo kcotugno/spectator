@@ -21,5 +21,9 @@ type Size struct {
 type Widget interface {
 	Render() [][]Cell
 	Constraints() Constraints
+	SetConstraints(Constraints)
+	Size() Size
 	SetSize(size Size)
+	Attributes() Attributes
+	SetAttributes(attrs Attributes)
 }

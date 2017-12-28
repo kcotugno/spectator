@@ -78,15 +78,14 @@ func main() {
 
 	window = &exhibit.WindowWidget{}
 	topAsks = &exhibit.ListWidget{}
-	window.Constrs.Bottom = true
 	topAsks.SetBorder(true)
 	topAsks.SetRightAlign(true)
-	topAsks.Attrs.ForegroundColor = exhibit.FGYellow
+	topAsks.SetAttributes(exhibit.Attributes{ForegroundColor: exhibit.FGYellow})
 
 	topBids = &exhibit.ListWidget{}
 	topBids.SetBorder(true)
 	topBids.SetRightAlign(true)
-	topBids.Attrs.ForegroundColor = exhibit.FGGreen
+	topBids.SetAttributes(exhibit.Attributes{ForegroundColor: exhibit.FGGreen})
 
 	midPrice = &exhibit.ListWidget{}
 	midPrice.SetRightAlign(true)

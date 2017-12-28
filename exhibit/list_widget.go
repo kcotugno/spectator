@@ -10,9 +10,9 @@ type ListEntry interface {
 }
 
 type ListWidget struct {
-	Constrs Constraints
-	Attrs   Attributes
-	Size    Size
+	constraints Constraints
+	attributes  Attributes
+	size        Size
 
 	cellLock sync.Mutex
 	cells    [][]Cell
@@ -28,8 +28,29 @@ type ListWidget struct {
 	lastSize Size
 }
 
-func (l *ListWidget) SetSize(size Size) {
-	l.Size = size
+func (l ListWidget) Attributes() Attributes {
+	return l.attributes
+}
+
+func (l *ListWidget) SetAttributes(a Attributes) {
+	l.attributes = a
+	l.recalculateCells()
+}
+
+func (l ListWidget) Constraints() Constraints {
+	return l.constraints
+}
+
+func (l *ListWidget) SetConstraints(c Constraints) {
+	l.constraints = c
+}
+
+func (l ListWidget) Size() Size {
+	return l.size
+}
+
+func (l *ListWidget) SetSize(s Size) {
+	l.size = s
 }
 
 func (l *ListWidget) Render() [][]Cell {
@@ -77,10 +98,6 @@ func (l *ListWidget) Render() [][]Cell {
 	l.lastSize.X = sx
 	l.lastSize.Y = sy
 	return append([][]Cell(nil), l.cells...)
-}
-
-func (l ListWidget) Constraints() Constraints {
-	return l.Constrs
 }
 
 func (l *ListWidget) AddEntry(entry ListEntry) {
@@ -148,15 +165,15 @@ func (l *ListWidget) recalculateCells() {
 		border = 1
 
 		top := make([]Cell, longest+2)
-		top[0] = Cell{Value: '┏', Attrs: l.Attrs}
-		top[longest+1] = Cell{Value: '┓', Attrs: l.Attrs}
+		top[0] = Cell{Value: '┏', Attrs: l.Attributes()}
+		top[longest+1] = Cell{Value: '┓', Attrs: l.Attributes()}
 		for i := 1; i <= longest; i++ {
-			top[i] = Cell{Value: '━', Attrs: l.Attrs}
+			top[i] = Cell{Value: '━', Attrs: l.Attributes()}
 		}
 
 		bottom := append([]Cell(nil), top...)
-		bottom[0] = Cell{Value: '┗', Attrs: l.Attrs}
-		bottom[longest+1] = Cell{Value: '┛', Attrs: l.Attrs}
+		bottom[0] = Cell{Value: '┗', Attrs: l.Attributes()}
+		bottom[longest+1] = Cell{Value: '┛', Attrs: l.Attributes()}
 
 		cells = append([][]Cell{top}, cells...)
 		cells = append(cells, bottom)
@@ -173,7 +190,7 @@ func (l *ListWidget) recalculateCells() {
 		}
 
 		if l.border {
-			c := Cell{Value: '┃', Attrs: l.Attrs}
+			c := Cell{Value: '┃', Attrs: l.Attributes()}
 			cells[i+border][0] = c
 			cells[i+border][longest+1] = c
 		}
