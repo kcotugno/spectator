@@ -95,8 +95,10 @@ func (l *ListWidget) Render() [][]Cell {
 		}
 	}
 
-	l.lastSize.X = sx
-	l.lastSize.Y = sy
+	l.size.X = sx
+	l.size.Y = sy
+	l.lastSize = l.size
+
 	return append([][]Cell(nil), l.cells...)
 }
 

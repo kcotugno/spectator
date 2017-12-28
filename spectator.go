@@ -169,19 +169,26 @@ func main() {
 		aIt := asks.Iterator()
 
 		var low, high decimal.Decimal
-		for i := num - 1; i >= 0; i-- {
+		asks := make([]ListEntry, num)
+		for i := 0; i < num; i++ {
 			aIt.Next()
 
 			entries := aIt.Value().(Entries)
 			price, size := flatten(entries)
 
-			topAsks.AddEntry(ListEntry{Value: size.StringFixed(8),
-				Attrs: exhibit.Attributes{ForegroundColor: exhibit.FGBlue}})
+			asks[i] = ListEntry{Value: size.StringFixed(8),
+				Attrs: exhibit.Attributes{ForegroundColor:
+				exhibit.FGBlue}}
 
-			if i == num-1 {
+			if i == 0 {
 				low = price
 			}
 		}
+
+		for i := num - 1; i >= 0; i-- {
+			topAsks.AddEntry(asks[i])
+		}
+
 		topAsks.Commit()
 
 		bIt := bids.Iterator()
