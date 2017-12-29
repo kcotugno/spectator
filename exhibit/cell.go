@@ -1,12 +1,11 @@
 package exhibit
 
-type Position struct {
-	X int
-	Y int
-}
+import (
+	"image"
+)
 
 type Cell struct {
-	Pos   Position
 	Value rune
+	Point image.Point
 	Attrs Attributes
 }

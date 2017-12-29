@@ -1,9 +1,12 @@
 package exhibit
 
+import (
+	"image"
+)
+
 type WindowWidget struct {
+	block       block
 	attributes  Attributes
-	constraints Constraints
-	size        Size
 	border      Border
 	widgets     []Widget
 }
