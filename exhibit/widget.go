@@ -1,5 +1,9 @@
 package exhibit
 
+import (
+	"image"
+)
+
 type Border struct {
 	Top    bool
 	Bottom bool
@@ -8,11 +12,9 @@ type Border struct {
 }
 
 type Widget interface {
-	Render() [][]Cell
-	Constraints() Constraints
-	SetConstraints(Constraints)
-	Size() Size
-	SetSize(size Size)
+	Render() Block
+	Size() image.Point
+	SetSize(image.Point)
 	Attributes() Attributes
-	SetAttributes(attrs Attributes)
+	SetAttributes(Attributes)
 }

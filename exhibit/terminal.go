@@ -5,12 +5,12 @@ import (
 
 	"bytes"
 	"fmt"
+	"image"
 	"io"
 	"log"
 	"os"
 	"sync"
 	"time"
-	"unicode/utf8"
 )
 
 const (
@@ -34,17 +34,13 @@ type Terminal struct {
 	bufLock sync.Mutex
 	buffer  *bytes.Buffer
 
-	sizeLock sync.Mutex
-	size     Size
-
 	displayLock sync.Mutex
-	display     [][]Cell
+	display     Block
 
 	interLock sync.Mutex
 	interBuf  []Cell
 
 	currentAttributes Attributes
-	cursorPosition    Position
 	cursorVisible     bool
 
 	termios unix.Termios
@@ -124,8 +120,6 @@ func (t *Terminal) Clear() {
 
 func (t *Terminal) SetCursor(x, y int) {
 	t.writeBuffer([]byte(fmt.Sprintf(cup, y+1, x+1)))
-	t.cursorPosition.X = x
-	t.cursorPosition.Y = y
 }
 
 func (t *Terminal) ShowCursor() {
@@ -142,65 +136,21 @@ func (t *Terminal) CursorVisible() bool {
 	return t.cursorVisible
 }
 
-func (t *Terminal) Size() Size {
-	t.sizeLock.Lock()
-	defer t.sizeLock.Unlock()
-
-	return t.size
+func (t *Terminal) Size() image.Point {
+	return t.display.Rect.Size()
 }
 
 func (t *Terminal) setSize(x, y int) {
-	t.sizeLock.Lock()
-	defer t.sizeLock.Unlock()
-
-	if t.size.X == x && t.size.Y == y {
-		return
-	}
-
 	t.displayLock.Lock()
 	defer t.displayLock.Unlock()
 
-	t.size.X = x
-	t.size.Y = y
-
-	if t.display == nil {
-		t.display = make([][]Cell, x)
-	} else if len(t.display) < x {
-		t.display = append(t.display, make([][]Cell, x-len(t.display))...)
-	}
-
-	for i := 0; i < x; i++ {
-		if t.display[i] == nil {
-			t.display[i] = make([]Cell, y)
-		} else if len(t.display[i]) < y {
-			t.display[i] = append(t.display[i],
-				make([]Cell, y-len(t.display[i]))...)
-		}
-	}
-
-	t.Clear()
-}
-
-func (t *Terminal) WriteString(s string, x, y int, attrs Attributes) {
-	if len(s) == 0 || len(t.display) < x+1 || len(t.display[0]) < y+1 {
+	if t.display.Rect.Size().X == x && t.display.Rect.Size().Y == y {
 		return
 	}
 
-	var j int
-	for i := 0; i < len(s); i++ {
-		r, sz := utf8.DecodeRuneInString(s[j:])
+	t.display = NewBlock(0, 0, x, y)
 
-		if sz > 0 {
-
-			cell := Cell{Position{x + i, y}, r, attrs}
-
-			if t.display[x+i][y] != cell {
-				t.interBuf = append(t.interBuf, cell)
-			}
-
-			j = j + sz
-		}
-	}
+	t.Clear()
 }
 
 func (t *Terminal) WriteCells(cells []Cell) {
@@ -260,24 +210,27 @@ func (t *Terminal) reconcileCells() {
 	defer t.interLock.Unlock()
 
 	var changed bool
-	sz := t.Size()
+	sz := t.display.Rect.Size()
 
 	for _, c := range t.interBuf {
-		if c.Pos.X >= sz.X || c.Pos.Y >= sz.Y {
+		if c.Point.X >= sz.X || c.Point.Y >= sz.Y {
 			continue
 		}
 
-		t.display[c.Pos.X][c.Pos.Y] = c
+		current := t.display.Cells[c.Point]
+
+		if current.Value == c.Value {
+			continue
+		}
+
+		t.display.Cells[c.Point] = c
 
 		if t.currentAttributes != c.Attrs {
 			changed = true
 			t.writeAttrs(c.Attrs)
 		}
 
-		if t.cursorPosition.X+1 != c.Pos.X {
-			t.SetCursor(c.Pos.X, c.Pos.Y)
-		}
-
+		t.SetCursor(c.Point.X, c.Point.Y)
 		t.writeRune(c.Value)
 	}
 
@@ -291,20 +244,7 @@ func (t *Terminal) reconcileCells() {
 }
 
 func (t *Terminal) writeRune(r rune) {
-
 	t.writeBuffer([]byte(string(r)))
-
-	if t.cursorPosition.X+1 <= t.size.X {
-		t.cursorPosition.X = 1
-	} else {
-		t.cursorPosition.X++
-	}
-
-	if t.cursorPosition.Y+1 <= t.size.Y {
-		t.cursorPosition.Y = 1
-	} else {
-		t.cursorPosition.Y++
-	}
 }
 
 func (t *Terminal) writeAttrs(attrs Attributes) {

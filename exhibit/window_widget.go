@@ -5,10 +5,10 @@ import (
 )
 
 type WindowWidget struct {
-	block       block
-	attributes  Attributes
-	border      Border
-	widgets     []Widget
+	block      Block
+	attributes Attributes
+	border     Border
+	widgets    []Widget
 }
 
 func (w *WindowWidget) AddWidget(widget Widget) {
@@ -27,61 +27,54 @@ func (w *WindowWidget) SetAttributes(a Attributes) {
 	w.attributes = a
 }
 
-func (w WindowWidget) Constraints() Constraints {
-	return w.constraints
+func (w WindowWidget) Size() image.Point {
+	return w.block.Rect.Size()
 }
 
-func (w *WindowWidget) SetConstraints(c Constraints) {
-	w.constraints = c
+func (w *WindowWidget) SetSize(p image.Point) {
+	w.block.SetSize(p)
 }
 
-func (w WindowWidget) Size() Size {
-	return w.size
-}
-
-func (w *WindowWidget) SetSize(s Size) {
-	w.size = s
-}
-
-func (w *WindowWidget) Render() [][]Cell {
-	if w.size.X == 0 || w.size.Y == 0 {
+func (w *WindowWidget) Render() Block {
+	if w.block.Rect.Size().X == 0 || w.block.Rect.Size().Y == 0 {
 		return w.renderContent()
 	} else {
 		return w.renderSize()
 	}
 }
 
-func (w *WindowWidget) renderContent() [][]Cell {
-	c := make([][]Cell, 0)
+func (w *WindowWidget) renderContent() Block {
+	//         c := make([][]Cell, 0)
 
-	var y int
+	//         var y int
 
-	for _, w := range w.widgets {
-		for _, row := range w.Render() {
+	//         for _, w := range w.widgets {
+	//                 for _, row := range w.Render() {
 
-			t := make([]Cell, len(row))
-			c = append(c, t)
+	//                         t := make([]Cell, len(row))
+	//                         c = append(c, t)
 
-			for j, col := range row {
-				col.Pos.Y = y
-				c[y][j] = col
-			}
+	//                         for j, col := range row {
+	//                                 col.Pos.Y = y
+	//                                 c[y][j] = col
+	//                         }
 
-			y++
-		}
-	}
+	//                         y++
+	//                 }
+	//         }
 
-	return c
+	return Block{}
 }
 
-func (w *WindowWidget) renderSize() [][]Cell {
-	c := make([][]Cell, w.size.Y)
+func (w *WindowWidget) renderSize() Block {
+	//         c := make([][]Cell, w.size.Y)
 
-	for y := 0; y < w.size.Y; y++ {
-		for x := 0; x < w.size.X; x++ {
-			c[y][x] = Cell{Pos: Position{X: x, Y: y}}
-		}
-	}
+	//         for y := 0; y < w.size.Y; y++ {
+	//                 for x := 0; x < w.size.X; x++ {
+	//                         c[y][x] = Cell{Pos: Position{X: x, Y: y}}
+	//                 }
+	//         }
 
-	return c
+	//         return c
+	return Block{}
 }

@@ -8,6 +8,7 @@ import (
 
 	"encoding/json"
 	"fmt"
+	"image"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -76,25 +77,27 @@ func main() {
 	defer terminal.Shutdown()
 	terminal.HideCursor()
 
-	window = &exhibit.WindowWidget{}
+	//         window = &exhibit.WindowWidget{}
 	topAsks = &exhibit.ListWidget{}
+	//         topAsks.SetSize(image.Point{100, 100})
 	topAsks.SetBorder(true)
 	topAsks.SetRightAlign(true)
-	topAsks.SetAttributes(exhibit.Attributes{ForegroundColor: exhibit.FGYellow})
+	topAsks.SetAttributes(exhibit.Attributes{ForegroundColor: exhibit.FGCyan})
 
 	topBids = &exhibit.ListWidget{}
-	topBids.SetBorder(true)
-	topBids.SetRightAlign(true)
-	topBids.SetAttributes(exhibit.Attributes{ForegroundColor: exhibit.FGGreen})
+	//         topBids.SetBorder(true)
+	//         topBids.SetRightAlign(true)
+	//         topBids.SetAttributes(exhibit.Attributes{ForegroundColor: exhibit.FGGreen})
 
 	midPrice = &exhibit.ListWidget{}
-	midPrice.SetRightAlign(true)
+	//         midPrice.SetRightAlign(true)
 
-	window.AddWidget(topAsks)
+	//         window.AddWidget(topAsks)
 	//         window.AddWidget(midPrice)
 	//         window.AddWidget(topBids)
 
-	scene := exhibit.Scene{terminal, window}
+	//         scene := exhibit.Scene{terminal, window}
+	scene := exhibit.Scene{terminal, topAsks}
 
 	conn, _, err := websocket.DefaultDialer.Dial("wss://ws-feed.gdax.com", nil)
 	if err != nil {
@@ -103,12 +106,16 @@ func main() {
 	defer conn.Close()
 
 	go func() {
+	Loop:
 		for e := range terminal.Event {
-			if e == exhibit.EventCtrC || e == exhibit.Eventq {
+			switch e {
+			case exhibit.Eventq:
+				fallthrough
+			case exhibit.EventCtrC:
 				conn.WriteMessage(websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.
 						CloseNormalClosure, ""))
-				break
+				break Loop
 			}
 		}
 	}()
@@ -165,6 +172,10 @@ func main() {
 		sz := terminal.Size()
 
 		num := numOfOrderPerSide(sz.Y)
+		aP := image.Point{14, num}
+		if topAsks.Size() != aP {
+			topAsks.SetSize(aP)
+		}
 
 		aIt := asks.Iterator()
 
@@ -177,8 +188,7 @@ func main() {
 			price, size := flatten(entries)
 
 			asks[i] = ListEntry{Value: size.StringFixed(8),
-				Attrs: exhibit.Attributes{ForegroundColor:
-				exhibit.FGBlue}}
+				Attrs: exhibit.Attributes{ForegroundColor: exhibit.FGMagenta}}
 
 			if i == 0 {
 				low = price

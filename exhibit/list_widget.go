@@ -1,6 +1,7 @@
 package exhibit
 
 import (
+	"image"
 	"sync"
 )
 
@@ -10,12 +11,11 @@ type ListEntry interface {
 }
 
 type ListWidget struct {
-	constraints Constraints
-	attributes  Attributes
-	size        Size
+	Style Style
 
-	cellLock sync.Mutex
-	cells    [][]Cell
+	blockLock  sync.Mutex
+	block      Block
+	attributes Attributes
 
 	rightAlign bool
 	border     bool
@@ -24,8 +24,6 @@ type ListWidget struct {
 	list     [][]Cell
 
 	listBuf [][]Cell
-
-	lastSize Size
 }
 
 func (l ListWidget) Attributes() Attributes {
@@ -37,72 +35,32 @@ func (l *ListWidget) SetAttributes(a Attributes) {
 	l.recalculateCells()
 }
 
-func (l ListWidget) Constraints() Constraints {
-	return l.constraints
+func (l ListWidget) Size() image.Point {
+	return l.block.Rect.Size()
 }
 
-func (l *ListWidget) SetConstraints(c Constraints) {
-	l.constraints = c
+func (l *ListWidget) SetSize(p image.Point) {
+	l.block.SetSize(p)
 }
 
-func (l ListWidget) Size() Size {
-	return l.size
-}
+func (l *ListWidget) Render() Block {
+	l.blockLock.Lock()
+	defer l.blockLock.Unlock()
 
-func (l *ListWidget) SetSize(s Size) {
-	l.size = s
-}
+	b := NewBlock(0, 0, 0, 0)
+	b.Rect = l.block.Rect
 
-func (l *ListWidget) Render() [][]Cell {
-	l.cellLock.Lock()
-	defer l.cellLock.Unlock()
-
-	var sx int
-	sy := len(l.cells)
-
-	if sy > 0 {
-		sx = len(l.cells[0])
-	} else {
-		return make([][]Cell, 0)
+	for k, v := range l.block.Cells {
+		b.Cells[k] = v
 	}
 
-	dx := 0
-	dy := 0
-	if l.lastSize.X > sx {
-		dx = l.lastSize.X - sx
-	}
-
-	if l.lastSize.Y > sy {
-		dy = l.lastSize.Y - sy
-	}
-
-	for y := 0; y < sy+dy; y++ {
-		if y >= sy {
-			l.cells = append(l.cells, []Cell{})
-		}
-
-		for x := 0; x < sx+dx; x++ {
-			if x >= sx || y >= sy {
-				c := Cell{}
-				c.Pos.X = x
-				c.Pos.Y = y
-				c.Value = ' '
-				l.cells[y] = append(l.cells[y], c)
-			} else {
-				l.cells[y][x].Pos.X = x
-				l.cells[y][x].Pos.Y = y
-			}
-		}
-	}
-
-	l.size.X = sx
-	l.size.Y = sy
-	l.lastSize = l.size
-
-	return append([][]Cell(nil), l.cells...)
+	return b
 }
 
 func (l *ListWidget) AddEntry(entry ListEntry) {
+	l.listLock.Lock()
+	defer l.listLock.Unlock()
+
 	if l.listBuf == nil {
 		l.listBuf = make([][]Cell, 1)
 	} else {
@@ -152,65 +110,75 @@ func (l *ListWidget) recalculateCells() {
 	l.listLock.Lock()
 	defer l.listLock.Unlock()
 
-	var longest int
-	var border int
+	l.blockLock.Lock()
+	size := l.block.Rect.Size()
+	l.blockLock.Unlock()
 
-	for _, s := range l.list {
-		if longest < len(s) {
-			longest = len(s)
-		}
-	}
+	cells := make(map[image.Point]Cell)
 
-	cells := make([][]Cell, len(l.list))
-
+	var i, bx, by int
 	if l.border {
-		border = 1
-
-		top := make([]Cell, longest+2)
-		top[0] = Cell{Value: '┏', Attrs: l.Attributes()}
-		top[longest+1] = Cell{Value: '┓', Attrs: l.Attributes()}
-		for i := 1; i <= longest; i++ {
-			top[i] = Cell{Value: '━', Attrs: l.Attributes()}
-		}
-
-		bottom := append([]Cell(nil), top...)
-		bottom[0] = Cell{Value: '┗', Attrs: l.Attributes()}
-		bottom[longest+1] = Cell{Value: '┛', Attrs: l.Attributes()}
-
-		cells = append([][]Cell{top}, cells...)
-		cells = append(cells, bottom)
+		size = size.Add(image.Point{2, 2})
+		bx = 1
+		by = 1
 	}
 
-	for i, s := range l.list {
-		cells[i+border] = make([]Cell, longest+border+border)
+	for x := 0; x < size.X; x++ {
+		for y := 0; y < size.Y; y++ {
+			c := Cell{Value: ' '}
 
-		var start int
-		if l.rightAlign {
-			start = longest - len(s)
-		} else {
-			start = 0
-		}
-
-		if l.border {
-			c := Cell{Value: '┃', Attrs: l.Attributes()}
-			cells[i+border][0] = c
-			cells[i+border][longest+1] = c
-		}
-
-		for j := 0; j < longest; j++ {
-			c := Cell{}
-			if j > start+len(s)-1 || j < start {
-				c.Value = ' '
-			} else {
-				c = s[j-start]
+			if l.border {
+				cell, ok := l.borderCell(image.Point{x, y}, size)
+				if ok {
+					cells[image.Point{x, y}] = cell
+					continue
+				}
 			}
 
-			cells[i+border][j+border] = c
+			if y < len(l.list)+by {
+				length := len(l.list[y-by])
+
+				if l.rightAlign {
+					i = (size.X - x - length - bx) * -1
+				} else {
+					i = x - bx
+				}
+
+				if i < length && i >= 0 {
+					c = l.list[y-by][i]
+				}
+
+				cells[image.Point{x, y}] = c
+			}
 		}
 	}
 
-	l.cellLock.Lock()
-	defer l.cellLock.Unlock()
+	l.blockLock.Lock()
+	l.block.Cells = cells
+	l.blockLock.Unlock()
+}
 
-	l.cells = cells
+func (l *ListWidget) borderCell(p image.Point, size image.Point) (Cell, bool) {
+	c := Cell{}
+	c.Attrs = l.Attributes()
+
+	if p.X != 0 && p.X != size.X-1 && p.Y != 0 && p.Y != size.Y-1 {
+		return c, false
+	}
+
+	if p.X == 0 && p.Y == 0 {
+		c.Value = BorderRune(TopLeft, l.Style)
+	} else if p.X == size.X-1 && p.Y == 0 {
+		c.Value = BorderRune(TopRight, l.Style)
+	} else if p.X == 0 && p.Y == size.Y-1 {
+		c.Value = BorderRune(BottomLeft, l.Style)
+	} else if p.X == size.X-1 && p.Y == size.Y-1 {
+		c.Value = BorderRune(BottomRight, l.Style)
+	} else if p.X == 0 || p.X == size.X-1 {
+		c.Value = BorderRune(Vertical, l.Style)
+	} else if p.Y == 0 || p.Y == size.Y-1 {
+		c.Value = BorderRune(Horizontal, l.Style)
+	}
+
+	return c, true
 }
