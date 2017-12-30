@@ -13,8 +13,8 @@ type ListEntry interface {
 type ListWidget struct {
 	Style Style
 
-	blockLock  sync.Mutex
-	block      Block
+	blockLock sync.Mutex
+	block     Block
 
 	attributesLock sync.Mutex
 	attributes     Attributes
