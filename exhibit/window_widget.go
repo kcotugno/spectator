@@ -2,16 +2,28 @@ package exhibit
 
 import (
 	"image"
+	"sync"
 )
 
 type WindowWidget struct {
-	block      Block
-	attributes Attributes
+	Style     Style
+	blockLock sync.Mutex
+	block     Block
+
+	attributesLock sync.Mutex
+	attributes     Attributes
+
+	borderLock sync.Mutex
 	border     Border
+
+	widgetLock sync.Mutex
 	widgets    []Widget
 }
 
 func (w *WindowWidget) AddWidget(widget Widget) {
+	w.widgetLock.Lock()
+	defer w.widgetLock.Unlock()
+
 	if w.widgets == nil {
 		w.widgets = make([]Widget, 0)
 	}
@@ -20,10 +32,16 @@ func (w *WindowWidget) AddWidget(widget Widget) {
 }
 
 func (w WindowWidget) Attributes() Attributes {
+	w.attributesLock.Lock()
+	defer w.attributesLock.Unlock()
+
 	return w.attributes
 }
 
 func (w *WindowWidget) SetAttributes(a Attributes) {
+	w.attributesLock.Lock()
+	defer w.attributesLock.Unlock()
+
 	w.attributes = a
 }
 
@@ -35,46 +53,78 @@ func (w *WindowWidget) SetSize(p image.Point) {
 	w.block.SetSize(p)
 }
 
-func (w *WindowWidget) Render() Block {
+func (w *WindowWidget) Origin() image.Point {
+	w.blockLock.Lock()
+	defer w.blockLock.Unlock()
+
+	return w.block.Rect.Min
+}
+
+func (w *WindowWidget) SetOrigin(p image.Point) {
+	w.blockLock.Lock()
+	defer w.blockLock.Unlock()
+
+	w.block.SetOrigin(p)
+}
+
+func (w *WindowWidget) Border() Border {
+	w.borderLock.Lock()
+	defer w.borderLock.Unlock()
+
+	return w.border
+}
+
+func (w *WindowWidget) SetBorder(b Border) {
+	w.borderLock.Lock()
+	defer w.borderLock.Unlock()
+
+	w.border = b
+}
+
+func (w *WindowWidget) Render(origin image.Point) Block {
 	if w.block.Rect.Size().X == 0 || w.block.Rect.Size().Y == 0 {
-		return w.renderContent()
-	} else {
-		return w.renderSize()
+		return NewBlock(0, 0, 0, 0)
 	}
-}
 
-func (w *WindowWidget) renderContent() Block {
-	//         c := make([][]Cell, 0)
+	w.widgetLock.Lock()
+	defer w.widgetLock.Unlock()
 
-	//         var y int
+	w.blockLock.Lock()
+	defer w.blockLock.Unlock()
 
-	//         for _, w := range w.widgets {
-	//                 for _, row := range w.Render() {
+	var borderAdj image.Point
+	border := w.Border()
+	if border.Visible {
+		borderAdj = image.Pt(1, 1)
+	}
 
-	//                         t := make([]Cell, len(row))
-	//                         c = append(c, t)
+	block := NewBlock(0, 0, 0, 0)
+	block.SetSize(w.block.Rect.Size())
+	block.SetOrigin(origin.Add(w.block.Origin()))
 
-	//                         for j, col := range row {
-	//                                 col.Pos.Y = y
-	//                                 c[y][j] = col
-	//                         }
+	for _, widget := range w.widgets {
+		cells := widget.Render(block.Origin().Add(borderAdj)).Cells
 
-	//                         y++
-	//                 }
-	//         }
+		for k, v := range cells {
+			if !k.In(block.Rect) {
+				continue
+			}
 
-	return Block{}
-}
+			block.Cells[k] = v
+		}
+	}
 
-func (w *WindowWidget) renderSize() Block {
-	//         c := make([][]Cell, w.size.Y)
+	if border.Visible {
+		for x := 0; x < block.Size().X; x++ {
+			for y := 0; y < block.Size().Y; y++ {
+				point := image.Pt(x, y).Add(block.Origin())
+				c, ok := border.Cell(point, block.Rect)
+				if ok {
+					block.Cells[point] = c
+				}
+			}
+		}
+	}
 
-	//         for y := 0; y < w.size.Y; y++ {
-	//                 for x := 0; x < w.size.X; x++ {
-	//                         c[y][x] = Cell{Pos: Position{X: x, Y: y}}
-	//                 }
-	//         }
-
-	//         return c
-	return Block{}
+	return block
 }

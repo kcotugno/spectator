@@ -4,17 +4,12 @@ import (
 	"image"
 )
 
-type Border struct {
-	Top    bool
-	Bottom bool
-	Left   bool
-	Right  bool
-}
-
 type Widget interface {
 	Render(image.Point) Block
 	Size() image.Point
 	SetSize(image.Point)
+	Origin() image.Point
+	SetOrigin(image.Point)
 	Attributes() Attributes
 	SetAttributes(Attributes)
 }

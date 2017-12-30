@@ -16,11 +16,19 @@ func NewBlock(originx, originy, sizex, sizey int) Block {
 	return b
 }
 
+func (b Block) Size() image.Point {
+	return b.Rect.Size()
+}
+
 func (b *Block) SetSize(p image.Point) {
 	dx := b.Rect.Min.X
 	dy := b.Rect.Min.Y
 	b.Rect.Max.X = p.X + dx
 	b.Rect.Max.Y = p.Y + dy
+}
+
+func (b Block) Origin() image.Point {
+	return b.Rect.Min
 }
 
 func (b *Block) SetOrigin(p image.Point) {

@@ -77,27 +77,25 @@ func main() {
 	defer terminal.Shutdown()
 	terminal.HideCursor()
 
-	//         window = &exhibit.WindowWidget{}
+	window = &exhibit.WindowWidget{}
+	window.SetBorder(exhibit.Border{Visible: true})
 	topAsks = &exhibit.ListWidget{}
 	//         topAsks.SetSize(image.Point{100, 100})
-	topAsks.SetBorder(true)
 	topAsks.SetRightAlign(true)
 	topAsks.SetAttributes(exhibit.Attributes{ForegroundColor: exhibit.FGCyan})
 
 	topBids = &exhibit.ListWidget{}
-	//         topBids.SetBorder(true)
 	//         topBids.SetRightAlign(true)
 	//         topBids.SetAttributes(exhibit.Attributes{ForegroundColor: exhibit.FGGreen})
 
 	midPrice = &exhibit.ListWidget{}
 	//         midPrice.SetRightAlign(true)
 
-	//         window.AddWidget(topAsks)
+	window.AddWidget(topAsks)
 	//         window.AddWidget(midPrice)
 	//         window.AddWidget(topBids)
 
-	//         scene := exhibit.Scene{terminal, window}
-	scene := exhibit.Scene{terminal, topAsks}
+	scene := exhibit.Scene{terminal, window}
 
 	conn, _, err := websocket.DefaultDialer.Dial("wss://ws-feed.gdax.com", nil)
 	if err != nil {
