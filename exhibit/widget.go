@@ -12,7 +12,7 @@ type Border struct {
 }
 
 type Widget interface {
-	Render() Block
+	Render(image.Point) Block
 	Size() image.Point
 	SetSize(image.Point)
 	Attributes() Attributes

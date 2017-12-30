@@ -57,14 +57,29 @@ func (l *ListWidget) SetSize(p image.Point) {
 	l.block.SetSize(p)
 }
 
-func (l *ListWidget) Render() Block {
+func (l *ListWidget) Origin() image.Point {
+	l.blockLock.Lock()
+	defer l.blockLock.Unlock()
+
+	return l.block.Rect.Min
+}
+
+func (l *ListWidget) SetOrigin(p image.Point) {
+	l.blockLock.Lock()
+	defer l.blockLock.Unlock()
+
+	l.block.SetOrigin(p)
+}
+
+func (l *ListWidget) Render(origin image.Point) Block {
 	l.blockLock.Lock()
 	defer l.blockLock.Unlock()
 
 	b := NewBlock(0, 0, 0, 0)
-	b.Rect = l.block.Rect
+	b.Rect = l.block.Rect.Add(origin)
 
 	for k, v := range l.block.Cells {
+		k = k.Add(origin)
 		b.Cells[k] = v
 	}
 
@@ -125,6 +140,7 @@ func (l *ListWidget) recalculateCells() {
 	defer l.listLock.Unlock()
 
 	l.blockLock.Lock()
+	origin := l.block.Rect.Min
 	size := l.block.Rect.Size()
 	l.blockLock.Unlock()
 
@@ -140,11 +156,12 @@ func (l *ListWidget) recalculateCells() {
 	for x := 0; x < size.X; x++ {
 		for y := 0; y < size.Y; y++ {
 			c := Cell{Value: ' '}
+			point := image.Pt(x, y).Add(origin)
 
 			if l.border {
-				cell, ok := l.borderCell(image.Point{x, y}, size)
+				cell, ok := l.borderCell(image.Pt(x, y), size)
 				if ok {
-					cells[image.Point{x, y}] = cell
+					cells[point] = cell
 					continue
 				}
 			}
@@ -162,7 +179,7 @@ func (l *ListWidget) recalculateCells() {
 					c = l.list[y-by][i]
 				}
 
-				cells[image.Point{x, y}] = c
+				cells[point] = c
 			}
 		}
 	}

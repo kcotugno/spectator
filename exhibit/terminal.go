@@ -217,6 +217,10 @@ func (t *Terminal) reconcileCells() {
 			continue
 		}
 
+		if c.Point.X < 0 || c.Point.Y < 0 {
+			continue
+		}
+
 		current := t.display.Cells[c.Point]
 
 		if current.Value == c.Value {

@@ -24,4 +24,6 @@ func (b *Block) SetSize(p image.Point) {
 }
 
 func (b *Block) SetOrigin(p image.Point) {
+	d := p.Sub(b.Rect.Min)
+	b.Rect = b.Rect.Add(d)
 }
