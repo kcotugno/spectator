@@ -14,9 +14,6 @@ type ListWidget struct {
 	blockLock sync.Mutex
 	block     Block
 
-	attributesLock sync.Mutex
-	attributes     Attributes
-
 	rightAlignLock sync.Mutex
 	rightAlign     bool
 
@@ -27,21 +24,6 @@ type ListWidget struct {
 	list     [][]Cell
 
 	listBuf [][]Cell
-}
-
-func (l *ListWidget) Attributes() Attributes {
-	l.attributesLock.Lock()
-	defer l.attributesLock.Unlock()
-
-	return l.attributes
-}
-
-func (l *ListWidget) SetAttributes(a Attributes) {
-	l.attributesLock.Lock()
-	l.attributes = a
-	l.attributesLock.Unlock()
-
-	l.recalculateCells()
 }
 
 func (l *ListWidget) Size() image.Point {

@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -71,6 +72,7 @@ var window *exhibit.WindowWidget
 var topAsks *exhibit.ListWidget
 var topBids *exhibit.ListWidget
 var midPrice *exhibit.ListWidget
+var history *exhibit.ListWidget
 
 func main() {
 	terminal = exhibit.Init()
@@ -78,22 +80,20 @@ func main() {
 	terminal.HideCursor()
 
 	window = &exhibit.WindowWidget{}
-	window.SetBorder(exhibit.Border{Visible: true})
-	topAsks = &exhibit.ListWidget{}
-	//         topAsks.SetSize(image.Point{100, 100})
-	topAsks.SetRightAlign(true)
-	topAsks.SetAttributes(exhibit.Attributes{ForegroundColor: exhibit.FGCyan})
+	window.SetBorder(exhibit.Border{Visible: true, Attributes: exhibit.Attributes{ForegroundColor: exhibit.FGYellow}})
 
+	topAsks = &exhibit.ListWidget{}
 	topBids = &exhibit.ListWidget{}
-	//         topBids.SetRightAlign(true)
-	//         topBids.SetAttributes(exhibit.Attributes{ForegroundColor: exhibit.FGGreen})
 
 	midPrice = &exhibit.ListWidget{}
-	//         midPrice.SetRightAlign(true)
+	midPrice.SetSize(image.Pt(24, 1))
+
+	history = &exhibit.ListWidget{}
 
 	window.AddWidget(topAsks)
-	//         window.AddWidget(midPrice)
-	//         window.AddWidget(topBids)
+	window.AddWidget(midPrice)
+	window.AddWidget(topBids)
+	window.AddWidget(history)
 
 	scene := exhibit.Scene{terminal, window}
 
@@ -169,10 +169,32 @@ func main() {
 
 		sz := terminal.Size()
 
+		if history.Size() != image.Pt(33, sz.Y) {
+			history.SetSize(image.Pt(33, sz.Y))
+		}
+
+		hOr := image.Pt(sz.X-35, 0)
+		if history.Origin() != hOr {
+			history.SetOrigin(hOr)
+		}
+
 		num := numOfOrderPerSide(sz.Y)
-		aP := image.Point{14, num}
-		if topAsks.Size() != aP {
-			topAsks.SetSize(aP)
+		size := image.Point{23, num}
+		if topAsks.Size() != size {
+			topAsks.SetSize(size)
+		}
+
+		bOrigin := image.Pt(0, size.Y+3)
+		if topBids.Origin() != bOrigin {
+			topBids.SetOrigin(bOrigin)
+		}
+		if topBids.Size() != size {
+			topBids.SetSize(size)
+		}
+
+		mOr := image.Pt(0, num+1)
+		if midPrice.Origin() != mOr {
+			midPrice.SetOrigin(mOr)
 		}
 
 		aIt := asks.Iterator()
@@ -185,8 +207,8 @@ func main() {
 			entries := aIt.Value().(Entries)
 			price, size := flatten(entries)
 
-			asks[i] = ListEntry{Value: size.StringFixed(8),
-				Attrs: exhibit.Attributes{ForegroundColor: exhibit.FGMagenta}}
+			asks[i] = ListEntry{Value: fmtObEntry(price, size),
+				Attrs: exhibit.Attributes{ForegroundColor: exhibit.FGRed}}
 
 			if i == 0 {
 				low = price
@@ -206,7 +228,8 @@ func main() {
 			entries := bIt.Value().(Entries)
 			price, size := flatten(entries)
 
-			topBids.AddEntry(ListEntry{Value: size.StringFixed(8)})
+			topBids.AddEntry(ListEntry{Value: fmtObEntry(price, size),
+				Attrs: exhibit.Attributes{ForegroundColor: exhibit.FGGreen}})
 
 			if i == 0 {
 				high = price
@@ -215,10 +238,7 @@ func main() {
 
 		topBids.Commit()
 
-		diff := low.Sub(high)
-
-		midPrice.AddEntry(ListEntry{Value: high.Add(diff.Div(decimal.
-			New(2, 0))).StringFixed(3)})
+		midPrice.AddEntry(ListEntry{Value: fmtMid(high, low)})
 		midPrice.Commit()
 	}
 }
@@ -283,6 +303,47 @@ func match(msg Message) {
 	}
 
 	trades.Enqueue(msg)
+
+	max := history.Size().Y
+	length := trades.Length()
+	var num int
+	if length > max {
+		num = max
+	} else {
+		num = length
+	}
+
+	for i := 0; i < num; i++ {
+		var index int
+
+		adj := trades.Length() - i - 1
+
+		if adj < 0 {
+			break
+		} else {
+			index = adj
+		}
+
+		e := trades.Element(index)
+
+		if e != nil {
+			msg := e.(Message)
+
+			var attrs exhibit.Attributes
+
+			switch msg.Side {
+			case "buy":
+				attrs.ForegroundColor = exhibit.FGRed
+			case "sell":
+				attrs.ForegroundColor = exhibit.FGGreen
+			}
+
+			le := ListEntry{fmtHistoryEntry(msg), attrs}
+			history.AddEntry(le)
+		}
+	}
+
+	history.Commit()
 }
 
 func change(msg Message) {
@@ -401,7 +462,7 @@ func treeEntries(tree *redblacktree.Tree, key decimal.Decimal) (Entries, bool) {
 }
 
 func numOfOrderPerSide(y int) int {
-	total := y - 3 - 4
+	total := y - 3 - 2
 
 	return (total / 2)
 }
@@ -454,4 +515,59 @@ func ReverseDecimalComparator(a, b interface{}) int {
 	default:
 		return 0
 	}
+}
+
+func recalcSizes() {
+}
+
+func padString(value string, length int) string {
+	c := utf8.RuneCountInString(value)
+
+	if c >= length {
+		return value
+	}
+
+	pad := length - c
+
+	var s string
+	for i := 0; i < pad; i++ {
+		s = s + " "
+	}
+
+	return s + value
+
+}
+
+func fmtObEntry(price, size decimal.Decimal) string {
+	s := padString(price.StringFixed(2), 8)
+	s = s + " "
+	s = s + padString(size.StringFixed(8), 14)
+
+	return s
+}
+
+func fmtHistoryEntry(msg Message) string {
+	var arrow string
+	switch msg.Side {
+	case "buy":
+		arrow = "↓"
+	case "sell":
+		arrow = "↑"
+	}
+
+	s := padString(msg.Size.StringFixed(8), 14)
+	s = s + " "
+	s = s + padString(msg.Price.StringFixed(2), 8)
+	s = s + arrow
+	s = s + " "
+	s = s + msg.Time.Local().Format(timeFormat)
+
+	return s
+}
+
+func fmtMid(high, low decimal.Decimal) string {
+	diff := low.Sub(high)
+	mid := high.Add(diff.Div(decimal.New(2, 0))).StringFixed(3)
+
+	return padString(mid, 9) + padString(diff.StringFixed(2), 14)
 }

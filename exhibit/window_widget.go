@@ -10,9 +10,6 @@ type WindowWidget struct {
 	blockLock sync.Mutex
 	block     Block
 
-	attributesLock sync.Mutex
-	attributes     Attributes
-
 	borderLock sync.Mutex
 	border     Border
 
@@ -29,20 +26,6 @@ func (w *WindowWidget) AddWidget(widget Widget) {
 	}
 
 	w.widgets = append(w.widgets, widget)
-}
-
-func (w WindowWidget) Attributes() Attributes {
-	w.attributesLock.Lock()
-	defer w.attributesLock.Unlock()
-
-	return w.attributes
-}
-
-func (w *WindowWidget) SetAttributes(a Attributes) {
-	w.attributesLock.Lock()
-	defer w.attributesLock.Unlock()
-
-	w.attributes = a
 }
 
 func (w WindowWidget) Size() image.Point {

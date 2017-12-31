@@ -1,8 +1,7 @@
 package main
 
 import (
-	"fmt"
-	"os"
+	"errors"
 )
 
 type Queue struct {
@@ -24,10 +23,9 @@ func (q *Queue) Length() int {
 	return q.length
 }
 
-func (q *Queue) Enqueue(v interface{}) {
+func (q *Queue) Enqueue(v interface{}) error {
 	if q.length == 256 {
-		fmt.Println("Queue Full")
-		os.Exit(1)
+		return errors.New("Queue Full")
 	}
 
 	q.end++
@@ -38,6 +36,8 @@ func (q *Queue) Enqueue(v interface{}) {
 
 	q.length++
 	q.data[q.end] = v
+
+	return nil
 }
 
 func (q *Queue) Dequeue() interface{} {
@@ -64,6 +64,10 @@ func (q *Queue) Dequeue() interface{} {
 
 func (q *Queue) Element(i int) interface{} {
 	var v interface{}
+
+	if i > q.length {
+		return nil
+	}
 
 	if q.begin == 0 {
 		v = q.data[i]

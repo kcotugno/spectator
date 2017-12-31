@@ -223,7 +223,7 @@ func (t *Terminal) reconcileCells() {
 
 		current := t.display.Cells[c.Point]
 
-		if current.Value == c.Value {
+		if current.Value == c.Value && current.Attrs == c.Attrs {
 			continue
 		}
 

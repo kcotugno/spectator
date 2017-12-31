@@ -10,6 +10,4 @@ type Widget interface {
 	SetSize(image.Point)
 	Origin() image.Point
 	SetOrigin(image.Point)
-	Attributes() Attributes
-	SetAttributes(Attributes)
 }
