@@ -88,6 +88,7 @@ func Init() *Terminal {
 	t.enterAlt()
 	t.enterRaw()
 	t.SetCursor(0, 0)
+	t.Clear()
 	t.Render()
 
 	t.watchSize()
