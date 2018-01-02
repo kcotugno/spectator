@@ -77,10 +77,6 @@ func main() {
 		}
 	}()
 
-	go func() {
-		<-ob.Err
-	}()
-
 	go renderLoop(&scene, 100*time.Millisecond)
 
 	updateOrders("sell")

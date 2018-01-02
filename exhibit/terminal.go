@@ -100,9 +100,6 @@ func Init() *Terminal {
 }
 
 func (t *Terminal) Shutdown() {
-	t.shutdown <- struct{}{}
-	t.shutdown <- struct{}{}
-
 	t.doneLock.Lock()
 	t.done = true
 	t.doneLock.Unlock()
@@ -113,9 +110,11 @@ func (t *Terminal) Shutdown() {
 
 	t.exitRaw()
 	t.exitAlt()
+
 	t.out.Close()
 	t.in.Close()
-	close(t.event)
+
+	t.shutdown <- struct{}{}
 }
 
 func (t *Terminal) Clear() {
@@ -155,6 +154,11 @@ func (t *Terminal) setSize(s image.Point) {
 	t.display = NewBlock(0, 0, s.X, s.Y)
 
 	t.Clear()
+
+	select {
+	case t.sizeChange <- s:
+	default:
+	}
 }
 
 func (t *Terminal) WriteCells(cells []Cell) {
@@ -271,7 +275,6 @@ func (t *Terminal) watchInput() {
 	go func() {
 		buf := make([]byte, 1)
 
-		Loop:
 		for {
 			_, err := t.in.Read(buf)
 			if err != nil {
@@ -279,12 +282,12 @@ func (t *Terminal) watchInput() {
 			}
 
 			select {
-			case <-t.shutdown:
-				break Loop
 			case t.event <- Event(buf[0]):
 			default:
 			}
 		}
+
+		close(t.event)
 	}()
 }
 
@@ -301,10 +304,6 @@ func (t *Terminal) watchSize() {
 			case <-timer.C:
 				size := t.sizeInternal()
 				t.setSize(size)
-				select {
-				case t.sizeChange <- size:
-				default:
-				}
 
 				continue
 			}

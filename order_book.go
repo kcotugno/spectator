@@ -155,7 +155,7 @@ func (o *OrderBook) watchBook() {
 
 		err = o.conn.WriteJSON(sub)
 		if err != nil {
-			o.err <- err
+			o.sendError(err)
 			return
 		}
 
@@ -165,7 +165,7 @@ func (o *OrderBook) watchBook() {
 			err := o.conn.ReadJSON(&msg)
 			if err != nil {
 				if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
-					o.err <- err
+					o.sendError(err)
 				}
 				break
 			}
@@ -192,7 +192,7 @@ func (o *OrderBook) watchBook() {
 			case "change":
 				o.change(msg)
 			default:
-				o.err <- errors.New("Unknown message type")
+				o.sendError(errors.New("Unknown message type"))
 			}
 
 			o.msg <- msg
@@ -256,7 +256,7 @@ func (o *OrderBook) loadOrderBook() {
 
 	resp, err := http.Get(fmt.Sprintf("https://api.gdax.com/products/%v/book?level=3", coin))
 	if err != nil {
-		o.err <- err
+		o.sendError(err)
 		o.Shutdown()
 		return
 	}
@@ -264,7 +264,7 @@ func (o *OrderBook) loadOrderBook() {
 
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		o.err <- err
+		o.sendError(err)
 		o.Shutdown()
 		return
 	}
@@ -273,7 +273,7 @@ func (o *OrderBook) loadOrderBook() {
 
 	err = json.Unmarshal(buf, &parsed)
 	if err != nil {
-		o.err <- err
+		o.sendError(err)
 		o.Shutdown()
 		return
 	}
@@ -283,13 +283,13 @@ func (o *OrderBook) loadOrderBook() {
 
 		e.Price, err = decimal.NewFromString(b[0])
 		if err != nil {
-			o.err <- err
+			o.sendError(err)
 			o.Shutdown()
 			return
 		}
 		e.Size, err = decimal.NewFromString(b[1])
 		if err != nil {
-			o.err <- err
+			o.sendError(err)
 			o.Shutdown()
 			return
 		}
@@ -304,13 +304,13 @@ func (o *OrderBook) loadOrderBook() {
 
 		e.Price, err = decimal.NewFromString(a[0])
 		if err != nil {
-			o.err <- err
+			o.sendError(err)
 			o.Shutdown()
 			return
 		}
 		e.Size, err = decimal.NewFromString(a[1])
 		if err != nil {
-			o.err <- err
+			o.sendError(err)
 			o.Shutdown()
 			return
 		}
@@ -438,5 +438,12 @@ func ReverseDecimalComparator(a, b interface{}) int {
 		return 1
 	default:
 		return 0
+	}
+}
+
+func (o *OrderBook) sendError(err error) {
+	select {
+	case o.err <- err:
+	default:
 	}
 }
