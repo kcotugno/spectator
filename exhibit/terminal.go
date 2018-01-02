@@ -24,7 +24,7 @@ const (
 )
 
 type Terminal struct {
-	Event <-chan Event
+	Event      <-chan Event
 	SizeChange <-chan image.Point
 
 	in *os.File

@@ -6,8 +6,8 @@ import (
 
 	"image"
 	"log"
-	"time"
 	"sync"
+	"time"
 	"unicode/utf8"
 )
 
@@ -28,9 +28,9 @@ var midPrice *exhibit.ListWidget
 var history *exhibit.ListWidget
 
 var numLock sync.Mutex
-var num     int
+var num int
 
-var sizeLock    sync.Mutex
+var sizeLock sync.Mutex
 var sizeChanged bool
 
 var low, high decimal.Decimal
@@ -68,7 +68,7 @@ func main() {
 	}
 
 	go func() {
-		Loop:
+	Loop:
 		for e := range terminal.Event {
 			switch e {
 			case exhibit.Eventq:
@@ -254,8 +254,7 @@ func updateAsks(entries []Entries) {
 		price, size := flatten(entry)
 
 		topAsks.AddEntry(ListEntry{Value: fmtObEntry(price, size),
-			Attrs: exhibit.Attributes{ForegroundColor:
-			exhibit.FGRed}})
+			Attrs: exhibit.Attributes{ForegroundColor: exhibit.FGRed}})
 
 		if i == 0 {
 			low = price
