@@ -212,7 +212,7 @@ func (o *OrderBook) open(msg Message) {
 }
 
 func (o *OrderBook) done(msg Message) {
-	if msg.OrderType == "market" {
+	if msg.Price.Equal(decimal.Zero) {
 		return
 	}
 
@@ -401,16 +401,16 @@ func (o *OrderBook) entries(side string, key decimal.Decimal) (Entries, bool) {
 
 	values, ok := tree.Get(key)
 
-	if ok {
-		entries := make(Entries)
-		for k, v := range values.(Entries) {
-			entries[k] = v
-		}
-
-		return values.(Entries), true
-	} else {
+	if !ok {
 		return nil, false
 	}
+
+	entries := make(Entries)
+	for k, v := range values.(Entries) {
+		entries[k] = v
+	}
+
+	return entries, true
 }
 
 func (o *OrderBook) updateEntries(side string, price decimal.Decimal, e Entries) {
