@@ -25,6 +25,7 @@ const (
 
 type Terminal struct {
 	Event <-chan Event
+	SizeChange <-chan image.Point
 
 	in *os.File
 
@@ -48,8 +49,9 @@ type Terminal struct {
 	doneLock sync.Mutex
 	done     bool
 
-	shutdown chan struct{}
-	event    chan Event
+	shutdown   chan struct{}
+	event      chan Event
+	sizeChange chan image.Point
 }
 
 func Init() *Terminal {
@@ -79,11 +81,11 @@ func Init() *Terminal {
 	t.shutdown = make(chan struct{})
 	t.event = make(chan Event, 1024)
 	t.Event = t.event
+	t.sizeChange = make(chan image.Point, 32)
+	t.SizeChange = t.sizeChange
 
-	x, y := t.sizeInternal()
-	if x != 0 && y != 0 {
-		t.setSize(x, y)
-	}
+	size := t.sizeInternal()
+	t.setSize(size)
 
 	t.enterAlt()
 	t.enterRaw()
@@ -98,6 +100,7 @@ func Init() *Terminal {
 }
 
 func (t *Terminal) Shutdown() {
+	t.shutdown <- struct{}{}
 	t.shutdown <- struct{}{}
 
 	t.doneLock.Lock()
@@ -138,18 +141,18 @@ func (t *Terminal) CursorVisible() bool {
 }
 
 func (t *Terminal) Size() image.Point {
-	return t.display.Rect.Size()
+	return t.display.Size()
 }
 
-func (t *Terminal) setSize(x, y int) {
+func (t *Terminal) setSize(s image.Point) {
 	t.displayLock.Lock()
 	defer t.displayLock.Unlock()
 
-	if t.display.Rect.Size().X == x && t.display.Rect.Size().Y == y {
+	if t.display.Size().X == s.X && t.display.Size().Y == s.Y {
 		return
 	}
 
-	t.display = NewBlock(0, 0, x, y)
+	t.display = NewBlock(0, 0, s.X, s.Y)
 
 	t.Clear()
 }
@@ -211,7 +214,7 @@ func (t *Terminal) reconcileCells() {
 	defer t.interLock.Unlock()
 
 	var changed bool
-	sz := t.display.Rect.Size()
+	sz := t.display.Size()
 
 	for _, c := range t.interBuf {
 		if c.Point.X >= sz.X || c.Point.Y >= sz.Y {
@@ -267,6 +270,8 @@ func (t *Terminal) writeAttrs(attrs Attributes) {
 func (t *Terminal) watchInput() {
 	go func() {
 		buf := make([]byte, 1)
+
+		Loop:
 		for {
 			_, err := t.in.Read(buf)
 			if err != nil {
@@ -274,6 +279,8 @@ func (t *Terminal) watchInput() {
 			}
 
 			select {
+			case <-t.shutdown:
+				break Loop
 			case t.event <- Event(buf[0]):
 			default:
 			}
@@ -289,11 +296,14 @@ func (t *Terminal) watchSize() {
 			select {
 			case <-t.shutdown:
 				timer.Stop()
+				close(t.sizeChange)
 				break
 			case <-timer.C:
-				x, y := t.sizeInternal()
-				if x != 0 && y != 0 {
-					t.setSize(x, y)
+				size := t.sizeInternal()
+				t.setSize(size)
+				select {
+				case t.sizeChange <- size:
+				default:
 				}
 
 				continue
@@ -304,13 +314,13 @@ func (t *Terminal) watchSize() {
 	}()
 }
 
-func (t *Terminal) sizeInternal() (x, y int) {
+func (t *Terminal) sizeInternal() image.Point {
 	sz, err := unix.IoctlGetWinsize(int(t.in.Fd()), unix.TIOCGWINSZ)
 	if err != nil {
-		return 0, 0
+		return image.Point{}
 	}
 
-	return int(sz.Col), int(sz.Row)
+	return image.Pt(int(sz.Col), int(sz.Row))
 }
 
 func (t *Terminal) writeOut(b []byte) {

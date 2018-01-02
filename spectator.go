@@ -2,17 +2,12 @@ package main
 
 import (
 	"git.kevincotugno.com/kcotugno/spectator/exhibit"
-	"github.com/emirpasic/gods/trees/redblacktree"
-	"github.com/gorilla/websocket"
 	"github.com/shopspring/decimal"
 
-	"encoding/json"
-	"fmt"
 	"image"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"time"
+	"sync"
 	"unicode/utf8"
 )
 
@@ -21,52 +16,10 @@ const (
 	timeFormat = "15:04:05"
 )
 
-type Sub struct {
-	Type       string   `json:"type"`
-	ProductIds []string `json:"product_ids"`
-	Channels   []string `json:"channels"`
-}
-
-type Message struct {
-	Sequence      int64           `json:"sequence"`
-	Type          string          `json:"type"`
-	Side          string          `json:"side"`
-	Price         decimal.Decimal `json:"price"`
-	Size          decimal.Decimal `json:"size"`
-	OrderId       string          `json:"order_id"`
-	MakerOrderId  string          `json:"maker_order_id"`
-	RemainingSize decimal.Decimal `json:"remaining_size"`
-	NewSize       decimal.Decimal `json:"new_size"`
-	ProductId     string          `json:"product_id"`
-	Time          time.Time       `json:"time"`
-	Reason        string          `json:"reason"`
-	OrderType     string          `json:"order_type"`
-	ClientOid     string          `json:"client_oid"`
-}
-
-type LevelThree struct {
-	Sequence int64             `json:"sequence"`
-	Bids     []LevelThreeEntry `json:"bids"`
-	Asks     []LevelThreeEntry `json:"asks"`
-}
-
-type Entry struct {
-	Id    string
-	Price decimal.Decimal
-	Size  decimal.Decimal
-}
-
-type Entries map[string]Entry
-
-type LevelThreeEntry []string
-
-var sub = Sub{"subscribe", []string{coin}, []string{"full"}}
-
-var asks = redblacktree.NewWith(DecimalComparator)
-var bids = redblacktree.NewWith(ReverseDecimalComparator)
 var trades = NewQueue()
 
 var terminal *exhibit.Terminal
+var ob *OrderBook
 
 var window *exhibit.WindowWidget
 var topAsks *exhibit.ListWidget
@@ -74,7 +27,14 @@ var topBids *exhibit.ListWidget
 var midPrice *exhibit.ListWidget
 var history *exhibit.ListWidget
 
+var numLock sync.Mutex
+var num     int
+
+var low, high decimal.Decimal
+
 func main() {
+	var err error
+
 	terminal = exhibit.Init()
 	defer terminal.Shutdown()
 	terminal.HideCursor()
@@ -97,368 +57,45 @@ func main() {
 
 	scene := exhibit.Scene{terminal, window}
 
-	conn, _, err := websocket.DefaultDialer.Dial("wss://ws-feed.gdax.com", nil)
+	watchSize(terminal.SizeChange)
+
+	ob, err = NewOrderBook(coin)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer conn.Close()
 
 	go func() {
-	Loop:
+		Loop:
 		for e := range terminal.Event {
 			switch e {
 			case exhibit.Eventq:
 				fallthrough
 			case exhibit.EventCtrC:
-				conn.WriteMessage(websocket.CloseMessage,
-					websocket.FormatCloseMessage(websocket.
-						CloseNormalClosure, ""))
+				ob.Shutdown()
 				break Loop
 			}
 		}
 	}()
 
-	err = conn.WriteJSON(sub)
-	if err != nil {
-		log.Fatal(err)
-	}
+	go func() {
+		<-ob.Err
+	}()
 
 	go renderLoop(&scene, 100*time.Millisecond)
 
-	sequence := loadOrderBook()
+	updateOrders("sell")
+	updateOrders("buy")
 
-	for {
-		var msg Message
-		err := conn.ReadJSON(&msg)
-		if err != nil {
-			if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
-				break
-			} else {
-				log.Fatal(err)
-			}
-		}
-
-		if msg.Type == "subscriptions" {
-			continue
-		}
-
-		if msg.Sequence <= sequence {
-			continue
-		}
-
-		if msg.Sequence != sequence+1 {
-			sequence = loadOrderBook()
-			continue
-		}
-
-		sequence = msg.Sequence
-
-		switch msg.Type {
-		case "received":
-		case "open":
-			open(msg)
-		case "done":
-			done(msg)
-		case "match":
-			match(msg)
-		case "change":
-			change(msg)
-		default:
-			log.Fatal("Unknown message type")
-		}
-
-		sz := terminal.Size()
-
-		if history.Size() != image.Pt(33, sz.Y) {
-			history.SetSize(image.Pt(33, sz.Y))
-		}
-
-		hOr := image.Pt(sz.X-35, 0)
-		if history.Origin() != hOr {
-			history.SetOrigin(hOr)
-		}
-
-		num := numOfOrderPerSide(sz.Y)
-		size := image.Point{23, num}
-		if topAsks.Size() != size {
-			topAsks.SetSize(size)
-		}
-
-		bOrigin := image.Pt(0, size.Y+3)
-		if topBids.Origin() != bOrigin {
-			topBids.SetOrigin(bOrigin)
-		}
-		if topBids.Size() != size {
-			topBids.SetSize(size)
-		}
-
-		mOr := image.Pt(0, num+1)
-		if midPrice.Origin() != mOr {
-			midPrice.SetOrigin(mOr)
-		}
-
-		aIt := asks.Iterator()
-
-		var low, high decimal.Decimal
-		asks := make([]ListEntry, num)
-		for i := 0; i < num; i++ {
-			aIt.Next()
-
-			entries := aIt.Value().(Entries)
-			price, size := flatten(entries)
-
-			asks[i] = ListEntry{Value: fmtObEntry(price, size),
-				Attrs: exhibit.Attributes{ForegroundColor: exhibit.FGRed}}
-
-			if i == 0 {
-				low = price
-			}
-		}
-
-		for i := num - 1; i >= 0; i-- {
-			topAsks.AddEntry(asks[i])
-		}
-
-		topAsks.Commit()
-
-		bIt := bids.Iterator()
-		for i := 0; i < num; i++ {
-			bIt.Next()
-
-			entries := bIt.Value().(Entries)
-			price, size := flatten(entries)
-
-			topBids.AddEntry(ListEntry{Value: fmtObEntry(price, size),
-				Attrs: exhibit.Attributes{ForegroundColor: exhibit.FGGreen}})
-
-			if i == 0 {
-				high = price
-			}
-		}
-
-		topBids.Commit()
-
-		midPrice.AddEntry(ListEntry{Value: fmtMid(high, low)})
-		midPrice.Commit()
+	for msg := range ob.Msg {
+		updateOrders(msg.Side)
 	}
 }
 
-func open(msg Message) {
-	tree := sideTree(msg.Side)
+func numPerSide() int {
+	numLock.Lock()
+	defer numLock.Unlock()
 
-	var entries Entries
-	var entry Entry
-
-	entries, ok := treeEntries(tree, msg.Price)
-	if !ok {
-		entries = Entries{}
-
-		tree.Put(msg.Price, entries)
-	}
-
-	entry.Id = msg.OrderId
-	entry.Price = msg.Price
-	entry.Size = msg.RemainingSize
-
-	entries[entry.Id] = entry
-}
-
-func done(msg Message) {
-	if msg.OrderType == "market" {
-		return
-	}
-	tree := sideTree(msg.Side)
-
-	entries, ok := treeEntries(tree, msg.Price)
-	if !ok {
-		return
-	}
-
-	delete(entries, msg.OrderId)
-	if len(entries) == 0 {
-		tree.Remove(msg.Price)
-	} else {
-		tree.Put(msg.Price, entries)
-	}
-}
-
-func match(msg Message) {
-	tree := sideTree(msg.Side)
-
-	entries, ok := treeEntries(tree, msg.Price)
-	if !ok {
-		return
-	}
-
-	entry, ok := entries[msg.MakerOrderId]
-	if !ok {
-		return
-	}
-
-	entry.Size = entry.Size.Sub(msg.Size)
-	entries[msg.MakerOrderId] = entry
-
-	if trades.Length() == 256 {
-		trades.Dequeue()
-	}
-
-	trades.Enqueue(msg)
-
-	max := history.Size().Y
-	length := trades.Length()
-	var num int
-	if length > max {
-		num = max
-	} else {
-		num = length
-	}
-
-	for i := 0; i < num; i++ {
-		var index int
-
-		adj := trades.Length() - i - 1
-
-		if adj < 0 {
-			break
-		} else {
-			index = adj
-		}
-
-		e := trades.Element(index)
-
-		if e != nil {
-			msg := e.(Message)
-
-			var attrs exhibit.Attributes
-
-			switch msg.Side {
-			case "buy":
-				attrs.ForegroundColor = exhibit.FGRed
-			case "sell":
-				attrs.ForegroundColor = exhibit.FGGreen
-			}
-
-			le := ListEntry{fmtHistoryEntry(msg), attrs}
-			history.AddEntry(le)
-		}
-	}
-
-	history.Commit()
-}
-
-func change(msg Message) {
-	tree := sideTree(msg.Side)
-
-	entries, ok := treeEntries(tree, msg.Price)
-	if !ok {
-		return
-	}
-
-	entry, ok := entries[msg.OrderId]
-	if !ok {
-		return
-	}
-
-	entry.Size = msg.NewSize
-	entries[msg.OrderId] = entry
-}
-
-func loadOrderBook() int64 {
-	bids.Clear()
-	asks.Clear()
-
-	resp, err := http.Get(fmt.Sprintf("https://api.gdax.com/products/%v/book?level=3", coin))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	buf, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	var parsed LevelThree
-
-	err = json.Unmarshal(buf, &parsed)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for _, e := range parsed.Bids {
-		var entry Entry
-
-		entry.Price, err = decimal.NewFromString(e[0])
-		if err != nil {
-			log.Fatal(err)
-		}
-		entry.Size, err = decimal.NewFromString(e[1])
-		if err != nil {
-			log.Fatal(err)
-		}
-		entry.Id = e[2]
-
-		var entries Entries
-		values, ok := bids.Get(entry.Price)
-		if !ok {
-			entries = Entries{}
-
-			bids.Put(entry.Price, entries)
-		} else {
-			entries = values.(Entries)
-		}
-
-		entries[entry.Id] = entry
-	}
-
-	for _, e := range parsed.Asks {
-		var entry Entry
-
-		entry.Price, err = decimal.NewFromString(e[0])
-		if err != nil {
-			log.Fatal(err)
-		}
-		entry.Size, err = decimal.NewFromString(e[1])
-		if err != nil {
-			log.Fatal(err)
-		}
-		entry.Id = e[2]
-
-		var entries Entries
-		values, ok := asks.Get(entry.Price)
-		if !ok {
-			entries = Entries{}
-
-			asks.Put(entry.Price, entries)
-		} else {
-			entries = values.(Entries)
-		}
-
-		entries[entry.Id] = entry
-	}
-
-	return parsed.Sequence
-}
-
-func sideTree(side string) *redblacktree.Tree {
-	switch side {
-	case "buy":
-		return bids
-	case "sell":
-		return asks
-	}
-
-	return nil
-}
-
-func treeEntries(tree *redblacktree.Tree, key decimal.Decimal) (Entries, bool) {
-	values, ok := tree.Get(key)
-
-	if ok {
-		return values.(Entries), true
-	} else {
-		return nil, false
-	}
+	return num
 }
 
 func numOfOrderPerSide(y int) int {
@@ -489,35 +126,39 @@ func renderLoop(scene *exhibit.Scene, interval time.Duration) {
 	}
 }
 
-func DecimalComparator(a, b interface{}) int {
-	aAsserted := a.(decimal.Decimal)
-	bAsserted := b.(decimal.Decimal)
+func recalcSizes(sz image.Point) {
+		numLock.Lock()
+		defer numLock.Unlock()
 
-	switch {
-	case aAsserted.GreaterThan(bAsserted):
-		return 1
-	case aAsserted.LessThan(bAsserted):
-		return -1
-	default:
-		return 0
-	}
-}
+		num = numOfOrderPerSide(sz.Y)
 
-func ReverseDecimalComparator(a, b interface{}) int {
-	aAsserted := a.(decimal.Decimal)
-	bAsserted := b.(decimal.Decimal)
+		if history.Size() != image.Pt(33, sz.Y) {
+			history.SetSize(image.Pt(33, sz.Y))
+		}
 
-	switch {
-	case aAsserted.GreaterThan(bAsserted):
-		return -1
-	case aAsserted.LessThan(bAsserted):
-		return 1
-	default:
-		return 0
-	}
-}
+		hOr := image.Pt(sz.X-35, 0)
+		if history.Origin() != hOr {
+			history.SetOrigin(hOr)
+		}
 
-func recalcSizes() {
+		num := numOfOrderPerSide(sz.Y)
+		size := image.Point{23, num}
+		if topAsks.Size() != size {
+			topAsks.SetSize(size)
+		}
+
+		bOrigin := image.Pt(0, size.Y+3)
+		if topBids.Origin() != bOrigin {
+			topBids.SetOrigin(bOrigin)
+		}
+		if topBids.Size() != size {
+			topBids.SetSize(size)
+		}
+
+		mOr := image.Pt(0, num+1)
+		if midPrice.Origin() != mOr {
+			midPrice.SetOrigin(mOr)
+		}
 }
 
 func padString(value string, length int) string {
@@ -570,4 +211,60 @@ func fmtMid(high, low decimal.Decimal) string {
 	mid := high.Add(diff.Div(decimal.New(2, 0))).StringFixed(3)
 
 	return padString(mid, 9) + padString(diff.StringFixed(2), 14)
+}
+
+func watchSize(c <-chan image.Point) {
+	go func() {
+		for s := range c {
+			recalcSizes(s)
+		}
+	}()
+}
+
+func updateOrders(side string) {
+	n := numPerSide()
+	entries := ob.Entries(side, n)
+
+	switch side {
+	case "sell":
+		updateAsks(entries)
+	case "buy":
+		updateBids(entries)
+	}
+
+	midPrice.AddEntry(ListEntry{Value: fmtMid(high, low)})
+	midPrice.Commit()
+}
+
+func updateAsks(entries []Entries) {
+	for i := len(entries) - 1; i >= 0; i-- {
+		entry := entries[i]
+		price, size := flatten(entry)
+
+		topAsks.AddEntry(ListEntry{Value: fmtObEntry(price, size),
+			Attrs: exhibit.Attributes{ForegroundColor:
+			exhibit.FGRed}})
+
+		if i == 0 {
+			low = price
+		}
+	}
+
+	topAsks.Commit()
+}
+
+func updateBids(entries []Entries) {
+	for i := 0; i < len(entries); i++ {
+		entry := entries[i]
+		price, size := flatten(entry)
+
+		topBids.AddEntry(ListEntry{Value: fmtObEntry(price, size),
+			Attrs: exhibit.Attributes{ForegroundColor: exhibit.FGGreen}})
+
+		if i == 0 {
+			high = price
+		}
+	}
+
+	topBids.Commit()
 }
