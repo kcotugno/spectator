@@ -88,6 +88,10 @@ func main() {
 
 	for msg := range ob.Msg {
 		updateOrders(msg.Side)
+
+		if msg.Type == "match" {
+			addTrade(msg)
+		}
 	}
 }
 
@@ -267,4 +271,53 @@ func updateBids(entries []Entries) {
 	}
 
 	topBids.Commit()
+}
+
+func addTrade(msg Message) {
+	if trades.Length() == 256 {
+		trades.Dequeue()
+	}
+
+	trades.Enqueue(msg)
+
+	max := history.Size().Y
+	length := trades.Length()
+	var num int
+	if length > max {
+		num = max
+	} else {
+		num = length
+	}
+
+	for i := 0; i < num; i++ {
+		var index int
+
+		adj := trades.Length() - i - 1
+
+		if adj < 0 {
+			break
+		} else {
+			index = adj
+		}
+
+		e := trades.Element(index)
+
+		if e != nil {
+			msg := e.(Message)
+
+			var attrs exhibit.Attributes
+
+			switch msg.Side {
+			case "buy":
+				attrs.ForegroundColor = exhibit.FGRed
+			case "sell":
+				attrs.ForegroundColor = exhibit.FGGreen
+			}
+
+			le := ListEntry{fmtHistoryEntry(msg), attrs}
+			history.AddEntry(le)
+		}
+	}
+
+	history.Commit()
 }
