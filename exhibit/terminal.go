@@ -118,6 +118,10 @@ func (t *Terminal) Shutdown() {
 }
 
 func (t *Terminal) Clear() {
+	t.displayLock.Lock()
+	defer t.displayLock.Unlock()
+	t.display.Cells = make(map[image.Point]Cell)
+
 	t.writeBuffer([]byte(clear))
 }
 
@@ -140,6 +144,9 @@ func (t *Terminal) CursorVisible() bool {
 }
 
 func (t *Terminal) Size() image.Point {
+	t.displayLock.Lock()
+	defer t.displayLock.Unlock()
+
 	return t.display.Size()
 }
 
@@ -152,8 +159,6 @@ func (t *Terminal) setSize(s image.Point) {
 	}
 
 	t.display = NewBlock(0, 0, s.X, s.Y)
-
-	t.Clear()
 
 	select {
 	case t.sizeChange <- s:

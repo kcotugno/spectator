@@ -6,7 +6,6 @@ import (
 )
 
 type WindowWidget struct {
-	Style     Style
 	blockLock sync.Mutex
 	block     Block
 
@@ -29,10 +28,16 @@ func (w *WindowWidget) AddWidget(widget Widget) {
 }
 
 func (w WindowWidget) Size() image.Point {
-	return w.block.Rect.Size()
+	w.blockLock.Lock()
+	defer w.blockLock.Unlock()
+
+	return w.block.Size()
 }
 
 func (w *WindowWidget) SetSize(p image.Point) {
+	w.blockLock.Lock()
+	defer w.blockLock.Unlock()
+
 	w.block.SetSize(p)
 }
 
@@ -65,15 +70,15 @@ func (w *WindowWidget) SetBorder(b Border) {
 }
 
 func (w *WindowWidget) Render(origin image.Point) Block {
-	if w.block.Rect.Size().X == 0 || w.block.Rect.Size().Y == 0 {
-		return NewBlock(0, 0, 0, 0)
-	}
+	w.blockLock.Lock()
+	defer w.blockLock.Unlock()
 
 	w.widgetLock.Lock()
 	defer w.widgetLock.Unlock()
 
-	w.blockLock.Lock()
-	defer w.blockLock.Unlock()
+	if w.block.Rect.Size().X == 0 || w.block.Rect.Size().Y == 0 {
+		return NewBlock(0, 0, 0, 0)
+	}
 
 	var borderAdj image.Point
 	border := w.Border()

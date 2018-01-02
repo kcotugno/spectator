@@ -30,6 +30,9 @@ var history *exhibit.ListWidget
 var numLock sync.Mutex
 var num     int
 
+var sizeLock    sync.Mutex
+var sizeChanged bool
+
 var low, high decimal.Decimal
 
 func main() {
@@ -57,7 +60,7 @@ func main() {
 
 	scene := exhibit.Scene{terminal, window}
 
-	watchSize(terminal.SizeChange)
+	watchSize(terminal)
 
 	ob, err = NewOrderBook(coin)
 	if err != nil {
@@ -117,9 +120,15 @@ func flatten(entries Entries) (decimal.Decimal, decimal.Decimal) {
 
 func renderLoop(scene *exhibit.Scene, interval time.Duration) {
 	timer := time.NewTicker(interval)
+	changed := time.NewTicker(2 * time.Second)
 
 	for {
 		select {
+		case <-changed.C:
+			if didsizeChanged() {
+				terminal.Clear()
+				setSizeChanged(false)
+			}
 		case <-timer.C:
 			scene.Render()
 		}
@@ -127,38 +136,41 @@ func renderLoop(scene *exhibit.Scene, interval time.Duration) {
 }
 
 func recalcSizes(sz image.Point) {
-		numLock.Lock()
-		defer numLock.Unlock()
+	numLock.Lock()
+	defer numLock.Unlock()
 
-		num = numOfOrderPerSide(sz.Y)
+	sizeLock.Lock()
+	defer sizeLock.Unlock()
 
-		if history.Size() != image.Pt(33, sz.Y) {
-			history.SetSize(image.Pt(33, sz.Y))
-		}
+	num = numOfOrderPerSide(sz.Y)
 
-		hOr := image.Pt(sz.X-35, 0)
-		if history.Origin() != hOr {
-			history.SetOrigin(hOr)
-		}
+	if history.Size() != image.Pt(33, sz.Y) {
+		history.SetSize(image.Pt(33, sz.Y))
+	}
 
-		num := numOfOrderPerSide(sz.Y)
-		size := image.Point{23, num}
-		if topAsks.Size() != size {
-			topAsks.SetSize(size)
-		}
+	hOr := image.Pt(sz.X-35, 0)
+	if history.Origin() != hOr {
+		history.SetOrigin(hOr)
+	}
 
-		bOrigin := image.Pt(0, size.Y+3)
-		if topBids.Origin() != bOrigin {
-			topBids.SetOrigin(bOrigin)
-		}
-		if topBids.Size() != size {
-			topBids.SetSize(size)
-		}
+	num := numOfOrderPerSide(sz.Y)
+	size := image.Point{23, num}
+	if topAsks.Size() != size {
+		topAsks.SetSize(size)
+	}
 
-		mOr := image.Pt(0, num+1)
-		if midPrice.Origin() != mOr {
-			midPrice.SetOrigin(mOr)
-		}
+	bOrigin := image.Pt(0, size.Y+3)
+	if topBids.Origin() != bOrigin {
+		topBids.SetOrigin(bOrigin)
+	}
+	if topBids.Size() != size {
+		topBids.SetSize(size)
+	}
+
+	mOr := image.Pt(0, num+1)
+	if midPrice.Origin() != mOr {
+		midPrice.SetOrigin(mOr)
+	}
 }
 
 func padString(value string, length int) string {
@@ -176,7 +188,6 @@ func padString(value string, length int) string {
 	}
 
 	return s + value
-
 }
 
 func fmtObEntry(price, size decimal.Decimal) string {
@@ -213,10 +224,11 @@ func fmtMid(high, low decimal.Decimal) string {
 	return padString(mid, 9) + padString(diff.StringFixed(2), 14)
 }
 
-func watchSize(c <-chan image.Point) {
+func watchSize(t *exhibit.Terminal) {
 	go func() {
-		for s := range c {
+		for s := range t.SizeChange {
 			recalcSizes(s)
+			setSizeChanged(true)
 		}
 	}()
 }
@@ -316,4 +328,18 @@ func addTrade(msg Message) {
 	}
 
 	history.Commit()
+}
+
+func didsizeChanged() bool {
+	sizeLock.Lock()
+	defer sizeLock.Unlock()
+
+	return sizeChanged
+}
+
+func setSizeChanged(c bool) {
+	sizeLock.Lock()
+	defer sizeLock.Unlock()
+
+	sizeChanged = c
 }
