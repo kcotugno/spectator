@@ -1,10 +1,5 @@
 package main
 
-import (
-	"fmt"
-	"os"
-)
-
 type Queue struct {
 	data         []interface{}
 	begin, end   int
@@ -25,9 +20,8 @@ func (q *Queue) Length() int {
 }
 
 func (q *Queue) Enqueue(v interface{}) {
-	if q.length == 256 {
-		fmt.Println("Queue Full")
-		os.Exit(1)
+	if q.length == q.size {
+		q.grow()
 	}
 
 	q.end++
@@ -77,4 +71,18 @@ func (q *Queue) Element(i int) interface{} {
 	}
 
 	return v
+}
+
+func (q *Queue) grow() {
+	size := q.size * 2
+	tmp := make([]interface{}, size)
+
+	for i := 0; i < q.length; i++ {
+		tmp[i] = q.Element(i)
+	}
+
+	q.data = tmp
+	q.size = size
+	q.begin = 0
+	q.end = q.length - 1
 }
