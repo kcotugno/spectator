@@ -96,7 +96,7 @@ func main() {
 
 	scene := exhibit.Scene{terminal, window}
 
-	conn, _, err := websocket.DefaultDialer.Dial("wss://ws-feed.gdax.com", nil)
+	conn, _, err := websocket.DefaultDialer.Dial("wss://ws-feed.pro.coinbase.com", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
