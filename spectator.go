@@ -91,8 +91,8 @@ func main() {
 	midPrice.SetRightAlign(true)
 
 	window.AddWidget(topAsks)
-	//         window.AddWidget(midPrice)
-	//         window.AddWidget(topBids)
+	window.AddWidget(midPrice)
+	window.AddWidget(topBids)
 
 	scene := exhibit.Scene{terminal, window}
 
@@ -177,8 +177,7 @@ func main() {
 			price, size := flatten(entries)
 
 			asks[i] = ListEntry{Value: size.StringFixed(8),
-				Attrs: exhibit.Attributes{ForegroundColor:
-				exhibit.FGBlue}}
+				Attrs: exhibit.Attributes{ForegroundColor: exhibit.FGBlue}}
 
 			if i == 0 {
 				low = price
