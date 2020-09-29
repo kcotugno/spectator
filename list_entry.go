@@ -1,7 +1,7 @@
 package main
 
 import (
-	"git.kevincotugno.com/kcotugno/spectator/exhibit"
+	"git.cotugno.family/kevin/spectator/exhibit"
 )
 
 type ListEntry struct {

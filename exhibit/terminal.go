@@ -1,8 +1,6 @@
 package exhibit
 
 import (
-	"golang.org/x/sys/unix"
-
 	"bytes"
 	"fmt"
 	"image"
@@ -11,6 +9,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -67,7 +67,7 @@ func Init() *Terminal {
 		log.Panic(err)
 	}
 
-	termios, err := unix.IoctlGetTermios(int(out.Fd()), unix.TCGETS)
+	termios, err := unix.IoctlGetTermios(int(out.Fd()), ioctlReadTermios)
 	if err != nil {
 		out.Close()
 		in.Close()
@@ -367,7 +367,7 @@ func (t *Terminal) enterRaw() {
 	termios.Cc[unix.VMIN] = 1
 	termios.Cc[unix.VTIME] = 0
 
-	err := unix.IoctlSetTermios(t.outFd(), unix.TCSETS, &termios)
+	err := unix.IoctlSetTermios(t.outFd(), ioctlWriteTermios, &termios)
 	if err != nil {
 		t.exitAlt()
 		t.out.Close()
@@ -377,7 +377,7 @@ func (t *Terminal) enterRaw() {
 }
 
 func (t *Terminal) exitRaw() {
-	err := unix.IoctlSetTermios(t.outFd(), unix.TCSETS, &t.termios)
+	err := unix.IoctlSetTermios(t.outFd(), ioctlWriteTermios, &t.termios)
 	if err != nil {
 		t.out.Close()
 		t.in.Close()
