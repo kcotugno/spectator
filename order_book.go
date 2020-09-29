@@ -78,7 +78,7 @@ func NewOrderBook(coin string) (*OrderBook, error) {
 	var o OrderBook
 	var err error
 
-	o.conn, _, err = websocket.DefaultDialer.Dial("wss://ws-feed.gdax.com", nil)
+	o.conn, _, err = websocket.DefaultDialer.Dial("wss://ws-feed.pro.coinbase.com", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +254,7 @@ func (o *OrderBook) loadOrderBook() {
 	o.askLock.Unlock()
 	o.bidLock.Unlock()
 
-	resp, err := http.Get(fmt.Sprintf("https://api.gdax.com/products/%v/book?level=3", coin))
+	resp, err := http.Get(fmt.Sprintf("https://api.pro.coinbase.com/products/%v/book?level=3", coin))
 	if err != nil {
 		o.sendError(err)
 		o.Shutdown()
